@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+backend/venv/
+backend/.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Build outputs
+frontend/dist/
+frontend/build/
+*.log
+
+# Env / secrets
+.env
+.env.local
+*.db
+*.sqlite3
