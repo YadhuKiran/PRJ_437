@@ -5,6 +5,7 @@ from .database import Base, engine
 from .routers import auth as auth_router
 from .routers import reports as reports_router
 from .routers import ai_analysis as ai_router
+from .routers import jev_analysis as jev_router
 from .routers import resources as resources_router
 
 Base.metadata.create_all(bind=engine)
@@ -21,6 +22,7 @@ app.add_middleware(
 app.include_router(auth_router.router)
 app.include_router(reports_router.router)
 app.include_router(ai_router.router)
+app.include_router(jev_router.router)
 app.include_router(resources_router.router)
 
 

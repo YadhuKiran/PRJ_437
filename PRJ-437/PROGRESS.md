@@ -53,3 +53,13 @@ The full demo flow passes offline in mock mode (`AI_PROVIDER=mock`, no API key n
 
 ### Explicitly out of scope (do not add)
 AI chatbot, facial recognition, voice cloning, blockchain, automatic police notification, automatic legal decisions, automatic case rejection, recommendation systems.
+
+
+## Jev-first revision (Review-2)
+- [x] Jev provider adapter and typed-question mapping added on feature branch `feature/jev-triage-pipeline`.
+- [x] Jev-first authenticated endpoint `POST /api/reports/{id}/jev-triage` added.
+- [x] Policy routing added: confidence/severity/multiple-indicator gates can invoke the existing secondary AI provider.
+- [x] Jev metadata retained with the risk assessment for later latency/routing evaluation.
+- [x] Staff UI includes a Jev triage action and compact result display.
+- [ ] Live Jev API call, latency, cost, and classification metrics still need controlled testing with a valid TypeSafe API key.
+- [ ] Tune thresholds using a held-out evaluation set; current values are engineering defaults only.
