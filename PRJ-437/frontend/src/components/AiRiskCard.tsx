@@ -18,6 +18,8 @@ export default function AiRiskCard({ reportId }: { reportId: number }) {
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState(0);
   const [msg, setMsg] = useState('');
+  const [jev, setJev] = useState<any | null>(null);
+  const [jevBusy, setJevBusy] = useState(false);
   const [override, setOverride] = useState('MEDIUM');
   const [reason, setReason] = useState('');
   const role = localStorage.getItem('role');
@@ -32,6 +34,21 @@ export default function AiRiskCard({ reportId }: { reportId: number }) {
       .catch(() => { if (alive) setMissing(true); });
     return () => { alive = false; };
   }, [reportId]);
+
+  async function runJev() {
+    setMsg('');
+    setJevBusy(true);
+    try {
+      const r = await api(`/api/reports/${reportId}/jev-triage`, { method: 'POST' });
+      setJev(r);
+      setA(r);
+      setMissing(false);
+    } catch (e: unknown) {
+      setMsg(e instanceof Error ? e.message : 'Jev triage could not be generated.');
+    } finally {
+      setJevBusy(false);
+    }
+  }
 
   async function generate() {
     setMsg('');
@@ -68,10 +85,18 @@ export default function AiRiskCard({ reportId }: { reportId: number }) {
       <BentoCard span="span-5" label="AI risk assessment">
         <Eyebrow>AI Risk Assessment</Eyebrow>
         <p className="card-sub">No analysis generated for this case yet.</p>
+        {canAct && <button className="btn secondary" onClick={runJev} disabled={jevBusy}><Sparkles size={16} aria-hidden="true" /> {jevBusy ? 'Running Jev…' : 'Run Jev Triage'}</button>}
         {canAct
           ? <button className="btn" onClick={generate}><Sparkles size={16} aria-hidden="true" /> Generate AI Analysis</button>
           : <p className="card-sub">Ask a case handler to generate it.</p>}
-        {msg && <p className="error-text" role="alert">{msg}</p>}
+        {jev && (
+        <div className="mini" style={{ marginTop: 12 }}>
+          <Eyebrow>Jev-first triage</Eyebrow>
+          <strong>{String(jev.jev?.primary_abuse_type || 'other').replaceAll('_', ' ')}</strong>
+          <p className="card-sub">Confidence {Math.round((jev.jev?.primary_confidence || 0) * 100)}% · Severity {Number(jev.jev?.severity_score || 0).toFixed(2)} · Route {jev.jev?.route}</p>
+        </div>
+      )}
+      {msg && <p className="error-text" role="alert">{msg}</p>}
       </BentoCard>
     );
   }
