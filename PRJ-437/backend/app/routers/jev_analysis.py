@@ -60,7 +60,7 @@ def generate_jev_triage(report_id: int, staff: User = Depends(require_roles("adm
         "weapon_mentioned": final_analysis.weapon_mentioned,
         "recurring_incident": final_analysis.recurring_incident,
         "stalking_detected": final_analysis.stalking_detected,
-        immediate_danger": final_analysis.immediate_danger,
+        "immediate_danger": final_analysis.immediate_danger,
         "key_indicators": final_analysis.key_indicators,
         "reasons": reasons,
         "source": downstream_source,
