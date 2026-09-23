@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Dict
 
 from .validator import validate_ai_output
-from ..config import (
+from .jev_config import (
     JEV_API_KEY,
     JEV_API_URL,
     JEV_MODEL,
