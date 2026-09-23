@@ -63,3 +63,11 @@ Death threat +30 · Weapon +25 · Immediate danger +25 · Repeated pattern +15 �
 - All AI output validated with Pydantic; AI failure never blocks report submission (fallback rule-based analysis, else `UNAVAILABLE`).
 - No API key hardcoded; `LLM_API_KEY` comes from env only.
 - Login/track errors use single calm messages that never reveal whether a username or Case ID exists.
+
+
+## Jev-first triage (Review-2 revision)
+- Optional Jev integration: TypeSafe System One decision layer for typed Choice/Score/Noul questions.
+- Staff endpoint: POST /api/reports/{id}/jev-triage.
+- Jev output is used to classify the primary abuse type, estimate severity, detect focused safety indicators, and route the case.
+- Low-confidence, elevated-severity, or multi-indicator cases can enter the secondary AI path; otherwise the deterministic risk engine is used directly.
+- Jev credentials are server-side environment variables only. Live Jev validation requires API access and is not assumed in offline demo mode.
