@@ -1,27 +1,26 @@
 #!/bin/bash
-# SafeReport — one-command Replit demo (single service: API + built frontend).
-# Replit sets $PORT; default 8000 for local runs.
+# SafeReport — fast-boot Replit demo (single service: API + prebuilt frontend).
+# Health checks hit / and must get a 200 immediately, so this script does
+# NO build at boot: frontend/dist is committed to git. Only escape hatch:
+# REBUILD_FRONTEND=1 rebuilds the UI (slow, health checks may time out).
 set -e
 PORT="${PORT:-8000}"
 
 echo "--- SafeReport boot (AI_PROVIDER=${AI_PROVIDER:-mock}) ---"
 
-cd backend
-pip install -q -r requirements.txt
-python -m app.seed || true
-cd ..
-
-# Rebuild frontend only if dist is missing or explicitly requested.
-if [ ! -d "frontend/dist" ] || [ "$REBUILD_FRONTEND" = "1" ]; then
-  echo "--- building frontend (VITE_API_URL='' for same-origin API) ---"
+if [ "$REBUILD_FRONTEND" = "1" ]; then
+  echo "--- rebuilding frontend (slow) ---"
   cd frontend
   npm install
   VITE_API_URL="" npm run build
   cd ..
-else
-  echo "--- using prebuilt frontend/dist ---"
 fi
 
-echo "--- serving on 0.0.0.0:$PORT (public victim flow: / ) ---"
 cd backend
+# Install deps only if imports are missing (Replit caches site-packages).
+python -c "import fastapi, uvicorn, sqlalchemy, pydantic, dotenv, jwt" 2>/dev/null \
+  || pip install -q -r requirements.txt
+python -m app.seed || true
+
+echo "--- serving on 0.0.0.0:$PORT (public victim flow: / ) ---"
 exec python -m uvicorn app.main:app --host 0.0.0.0 --port "$PORT"
