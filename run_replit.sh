@@ -43,6 +43,13 @@ export SEED_DEMO=1
 # Install deps only if imports are missing (Replit caches site-packages).
 if ! $PYBIN -c "import fastapi, uvicorn, sqlalchemy, pydantic, dotenv, jwt" 2>/dev/null; then
   echo "--- installing backend deps ---"
+  # Replit blocks direct pypi.org egress (DNS fails); package downloads must
+  # go through its internal mirror. Honor the env when present (workspace
+  # shell sets it), otherwise fall back to the well-known mirror address
+  # (deployments often lack these vars).
+  export PIP_INDEX_URL="${PIP_INDEX_URL:-http://package-firewall.replit.internal/pypi/simple/}"
+  export PIP_TRUSTED_HOST="${PIP_TRUSTED_HOST:-package-firewall.replit.internal package-firewall.replit.local}"
+  echo "--- pip index: $PIP_INDEX_URL ---"
   if command -v pip3 >/dev/null 2>&1; then
     PIPBIN=pip3
   elif command -v pip >/dev/null 2>&1; then
@@ -56,6 +63,10 @@ if ! $PYBIN -c "import fastapi, uvicorn, sqlalchemy, pydantic, dotenv, jwt" 2>/d
   # shellcheck disable=SC2086
   $PIPBIN install -q -r requirements.txt || {
     echo "FATAL: pip install failed — see output above"
+    exit 1
+  }
+  $PYBIN -c "import fastapi, uvicorn, sqlalchemy, pydantic, dotenv, jwt" || {
+    echo "FATAL: deps still missing after pip install (see import error above)"
     exit 1
   }
 else
