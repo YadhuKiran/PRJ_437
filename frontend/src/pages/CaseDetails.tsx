@@ -15,6 +15,26 @@ export default function CaseDetails({ id, onBack }: { id: number; onBack: () => 
   const [rep, setRep] = useState<Detail | null>(null);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [error, setError] = useState('');
+  const [statusMsg, setStatusMsg] = useState('');
+  const [statusBusy, setStatusBusy] = useState(false);
+  const role = localStorage.getItem('role');
+  const canChangeStatus = role === 'admin' || role === 'case_handler';
+
+  async function changeStatus(next: string) {
+    if (!rep || next === rep.status) return;
+    setStatusMsg('');
+    setStatusBusy(true);
+    try {
+      const r = await api(`/api/reports/${id}/status`, {
+        method: 'PATCH', body: JSON.stringify({ status: next }),
+      });
+      setRep((prev) => (prev ? { ...prev, status: r.status } : prev));
+    } catch (e: unknown) {
+      setStatusMsg(e instanceof Error ? e.message : 'Status could not be updated.');
+    } finally {
+      setStatusBusy(false);
+    }
+  }
 
   useEffect(() => {
     let alive = true;
@@ -77,6 +97,23 @@ export default function CaseDetails({ id, onBack }: { id: number; onBack: () => 
         Reported {rep.created_at?.slice(0, 10)} · {rep.reporter_type.replace('_', ' ')}
         {rep.location ? ` · ${rep.location}` : ''}
       </p>
+      {canChangeStatus && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', margin: '12px 0' }} role="group" aria-label="Change case status">
+          <span className="card-sub">Status:</span>
+          {(['new', 'under_review', 'closed'] as const).map((s) => (
+            <button
+              key={s}
+              className="chip"
+              aria-pressed={rep.status === s}
+              disabled={statusBusy || rep.status === s}
+              onClick={() => changeStatus(s)}
+            >
+              {s.replace(/_/g, ' ')}
+            </button>
+          ))}
+          {statusMsg && <span className="error-text" role="alert">{statusMsg}</span>}
+        </div>
+      )}
 
       <BentoGrid>
         <AiRiskCard reportId={id} />

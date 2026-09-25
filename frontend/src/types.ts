@@ -46,4 +46,22 @@ export interface AuditEvent {
 }
 
 export type PublicView = 'home' | 'report' | 'track' | 'resources';
-export type StaffView = 'dashboard' | 'cases' | 'audit' | 'resources';
+export type StaffView = 'dashboard' | 'cases' | 'audit' | 'resources' | 'security';
+
+export interface PagedReports {
+  items: ReportItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+}
+
+export interface AiStatus {
+  provider: string;
+  model: string;
+  jev_configured: boolean;
+  jev_host: string;
+  key_hint: string;
+  offline_safe: boolean;
+  note: string;
+}

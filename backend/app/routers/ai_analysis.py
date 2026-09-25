@@ -52,8 +52,12 @@ def generate_analysis(report_id: int, staff: User = Depends(require_roles("admin
 
     # Analyze WITHOUT logging the narrative.
     ai_available = True
+    provider = get_provider()
+    provider_name = provider.__class__.__name__
+    jev_meta: dict = {}
     try:
-        ai = get_provider().analyze(r.description)
+        ai = provider.analyze(r.description)
+        jev_meta = dict(getattr(provider, "last_meta", {}) or {})
     except Exception:
         try:
             ai = fallback_analysis(r.description)
@@ -107,7 +111,8 @@ def generate_analysis(report_id: int, staff: User = Depends(require_roles("admin
     db.commit()
     db.refresh(row)
     audit(db, "ai_analysis_generated", actor_id=staff.id, actor_role=staff.role, report_id=r.id,
-          details={"case_id": r.case_id, "risk_score": score, "risk_level": level})
+          details={"case_id": r.case_id, "risk_score": score, "risk_level": level,
+                   "provider": provider_name, "jev": jev_meta})
     return _to_out(row, r.case_id)
 
 

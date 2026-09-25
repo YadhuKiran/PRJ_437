@@ -7,6 +7,8 @@
 # NOTE: no `set -e` — we log every failure explicitly so Replit logs
 # show the real cause instead of just "No open port was detected".
 PORT="${PORT:-5000}"
+# Jev is the default AI provider (cloud decision model, offline-safe without a key).
+export AI_PROVIDER="${AI_PROVIDER:-jev}"
 
 echo "--- SafeReport boot (AI_PROVIDER=${AI_PROVIDER:-mock}) ---"
 echo "--- PWD=$(pwd) PORT=$PORT ---"

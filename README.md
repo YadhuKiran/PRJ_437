@@ -9,13 +9,13 @@ assessment. No chatbot, no auto-decisions.
 - Backend: Python + FastAPI (`backend/`) — also serves the built frontend on Replit (single service)
 - Frontend: React + TypeScript + Vite + Lucide icons (`frontend/`)
 - DB: PostgreSQL via `DATABASE_URL`, SQLite fallback for offline demo
-- AI: provider abstraction — `AI_PROVIDER=mock` (offline, default) | `llm` | `jev` (TypeSafe decision layer, offline-safe)
+- AI: Jev cloud decision model (`AI_PROVIDER=jev`, default, offline-safe without a key) | `mock` (keyword demo) | `llm` (OpenAI-compatible)
 
 ## Run backend (offline demo)
 ```powershell
 cd backend
 pip install -r requirements.txt
-copy .env.example .env   # keep AI_PROVIDER=mock
+copy .env.example .env   # AI_PROVIDER=jev (offline-safe without a key)
 python -m app.seed       # creates admin/Admin123!, handler/Handler123!, viewer/Viewer123!
 python -m uvicorn app.main:app --reload   # http://localhost:8000
 ```
@@ -44,8 +44,11 @@ One service serves API + built frontend (`run_replit.sh`, `.replit`). Boot takes
 
    | Secret | Default | Purpose |
    |---|---|---|
-   | `AI_PROVIDER` | `mock` | `mock` (offline) \| `llm` \| `jev` (decision layer, offline-safe without key) |
-   | `JEV_API_KEY` | empty | Live Jev triage (or `TYPESAFE_API_KEY` / `OPENROUTER_API_KEY` + `JEV_API_URL`/`JEV_MODEL`) |
+   | `AI_PROVIDER` | `jev` | `jev` (live Jev triage, offline-safe without key) \| `mock` \| `llm` |
+   | `JEV_API_KEY` | empty | Live TypeSafe triage (early-access key, `sk-...`) |
+   | `JEV_AGENT_KEY` | empty | Free mirror key from `jev-agent.com/api-access` (`jv_live_...`) — same contract |
+   | `JEV_API_URL` | auto | Explicit host override (else auto-selected from key prefix) |
+   | `JEV_MODEL` | `jev-latest` | Pin e.g. `jev-1.13.0` in production |
    | `JWT_SECRET` | ephemeral per boot | Auto-generated if unset; set your own for stable logins |
    | `DATABASE_URL` | SQLite file | Point at Postgres for a persistent review DB |
 
@@ -55,8 +58,12 @@ Every boot seeds (idempotent): staff logins `admin/Admin123!`, `handler/Handler1
 
 Local single-service check: `cd frontend && VITE_API_URL="" npm run build`, then `cd backend && python -m uvicorn app.main:app`.
 
-## Jev decision layer (`AI_PROVIDER=jev`)
+## Jev decision layer (`AI_PROVIDER=jev`, default)
 Jev (TypeSafe System One, launched Sept 2026) is a **hosted proprietary** decision model — not open source. Pipeline: narrative → local extraction (no invented facts) → one Jev call with 4 bounded questions (`immediate_danger` noul, `urgency` choice, `support_pathway` choice, `needs_review` noul) → merged result → existing deterministic risk engine scores. No key/network → falls back to local extraction (same `85/100 HIGH` on the demo narrative), so the Replit demo never breaks. Jev only shapes recommendation + review routing; it never triggers police contact, disclosure, or any irreversible action (no such code path exists).
+
+Two hosts, same contract (`POST /v1/systemone`, verified Sept 2026): `https://api.typesafe.ai/v1/systemone` (TypeSafe key) and `https://jev-agent.com/api/v1/systemone` (free `jv_live_...` key from `jev-agent.com/api-access`). The host auto-selects from the key prefix unless `JEV_API_URL` is set.
+
+Staff can check wiring at **Security & AI** (GET `/api/ai/status`) and prove the live key with **Verify live Jev** (POST `/api/ai/verify` — scores the demo narrative without touching the DB). Calibration scaffold for the paper: `cd backend && python -m scripts.calibrate`.
 
 ## Frontend design system (Bento UI)
 - Design tokens: `frontend/src/tokens.css` (colors, spacing, radius, shadows, typography, transitions).
@@ -71,10 +78,12 @@ Jev (TypeSafe System One, launched Sept 2026) is a **hosted proprietary** decisi
 - **Notifications**: the bell shows the real count of open HIGH-risk cases (no fabricated notification feed).
 - **Dark mode**: light theme prioritized per spec; tokens are centralized so a dark theme can be added later.
 
-## API (unchanged contracts)
-- `POST /api/reports` (public) · `GET /api/reports` (staff) · `GET /api/reports/{id}` (staff) · `GET /api/reports/by-case/{case_id}` (public, status only)
-- `POST /api/auth/login` · `GET /api/audit` (admin)
+## API (unchanged contracts, plus additive endpoints)
+- `POST /api/reports` (public, 10/min/IP rate-limited) · `GET /api/reports?page=&page_size=` (staff, paginated) · `GET /api/reports/{id}` (staff) · `GET /api/reports/by-case/{case_id}` (public, status only)
+- `PATCH /api/reports/{id}/status` (handler forward `new` → `under_review` → `closed`; admin can reopen)
+- `POST /api/auth/login` · `POST /api/auth/change-password` (authenticated) · `GET /api/audit` (admin)
 - `POST /api/reports/{id}/ai-analysis` (case_handler, admin) · `GET` same (viewer included) · `POST /api/reports/{id}/override-risk` (case_handler, admin)
+- `GET /api/ai/status` (staff — provider wiring, never leaks keys) · `POST /api/ai/verify` (handler/admin — live Jev check, no DB writes)
 
 ## Risk engine (deterministic, backend-calculated)
 Death threat +30 · Weapon +25 · Immediate danger +25 · Repeated pattern +15 · Stalking +10 · Tech monitoring +5 (max 100). LOW 0–29, MEDIUM 30–59, HIGH 60–100.

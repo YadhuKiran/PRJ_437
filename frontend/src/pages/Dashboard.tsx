@@ -23,8 +23,8 @@ export default function Dashboard({ onOpen, onViewAudit, onUrgent }: {
 
   useEffect(() => {
     let alive = true;
-    api('/api/reports')
-      .then((r) => { if (alive) setItems(r); })
+    api('/api/reports?page=1&page_size=100')
+      .then((r) => { if (alive) setItems(Array.isArray(r) ? r : (r.items || [])); })
       .catch(() => { if (alive) setError('Unable to load cases. Please try again.'); });
     if (role === 'admin') {
       api('/api/audit').then((r) => { if (alive) setEvents(r.slice(0, 6)); }).catch(() => { if (alive) setEvents([]); });

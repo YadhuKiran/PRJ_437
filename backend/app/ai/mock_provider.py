@@ -11,8 +11,9 @@ WEAPON_RE = re.compile(r"\b(gun|knife|pistol|rifle|weapon|blade|bat|machete)\b",
 KILL_RE = re.compile(r"\b(kill|murder|dead|death threat|die)\b", re.I)
 THREAT_RE = re.compile(r"\b(threat|threaten|warned|told anyone|or else)\b", re.I)
 HIT_RE = re.compile(r"\b(hit|hits|hitting|beat|beating|slap|slapped|punch|punched|kick|kicked|assault|attack)\b", re.I)
-STALK_RE = re.compile(r"\b(follow|follows|following|stalk|watching me|waiting outside|shows up)\b", re.I)
+STALK_RE = re.compile(r"\b(follow|follows|following|stalk|watching me|waiting outside|waits outside|wait outside|outside my|shows up)\b", re.I)
 PHONE_RE = re.compile(r"\b(phone|check.*phone|monitoring|tracking|spyware|messages|location)\b", re.I)
+FIN_RE = re.compile(r"\b(money|bank account|controls.*money|financial|allowance|debt)\b", re.I)
 REPEAT_RE = re.compile(r"\b(keeps|keep|again|every day|repeatedly|always|often|yesterday.*keeps|keeps.*check)\b", re.I)
 DANGER_RE = re.compile(r"\b(kill|threat|afraid|fear|danger|hurt|harm|yesterday)\b", re.I)
 
@@ -26,6 +27,7 @@ class MockProvider(BaseAIProvider):
         hit = bool(HIT_RE.search(t))
         stalk = bool(STALK_RE.search(t))
         phone = bool(PHONE_RE.search(t))
+        financial = bool(FIN_RE.search(t))
         repeat = bool(REPEAT_RE.search(t))
         danger = bool(DANGER_RE.search(t)) and (kill or hit or threat)
 
@@ -38,6 +40,8 @@ class MockProvider(BaseAIProvider):
             abuse.append("stalking")
         if phone:
             abuse.append("technology monitoring")
+        if financial:
+            abuse.append("financial abuse")
 
         indicators = []
         if kill:
@@ -48,6 +52,8 @@ class MockProvider(BaseAIProvider):
             indicators.append("phone monitoring")
         if stalk:
             indicators.append("stalking")
+        if financial:
+            indicators.append("financial control")
         if threat and not kill:
             indicators.append("threat")
 

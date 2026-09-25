@@ -14,6 +14,7 @@ from .database import Base, engine
 from .routers import auth as auth_router
 from .routers import reports as reports_router
 from .routers import ai_analysis as ai_router
+from .routers import ai_status as ai_status_router
 from .routers import resources as resources_router
 
 
@@ -32,6 +33,12 @@ app = FastAPI(title="Domestic Violence Reporting Platform (+ AI risk assessment)
 @app.on_event("startup")
 def _startup_init_db():
     _init_db()
+    try:
+        from .config import is_dev_secret
+        if is_dev_secret():
+            print("WARN: JWT_SECRET is a dev default — set a strong secret in env/Replit Secrets")
+    except Exception:
+        pass
 
 
 _init_db()
@@ -46,13 +53,17 @@ app.add_middleware(
 app.include_router(auth_router.router)
 app.include_router(reports_router.router)
 app.include_router(ai_router.router)
+app.include_router(ai_status_router.router)
 app.include_router(resources_router.router)
 
 
 @app.get("/api/health")
 def health():
-    from .config import AI_PROVIDER
-    return {"status": "ok", "ai_provider": AI_PROVIDER}
+    from .config import AI_PROVIDER, JEV_MODEL, jev_credentials, is_dev_secret
+    key, host = jev_credentials()
+    return {"status": "ok", "ai_provider": AI_PROVIDER, "ai_model": JEV_MODEL,
+            "jev_configured": bool(key), "jev_host": host,
+            "dev_secret": is_dev_secret()}
 
 
 # ---- Single-service static hosting for Replit (no-op locally if dist missing) ----

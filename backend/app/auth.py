@@ -19,12 +19,27 @@ def hash_password(password: str, salt: str) -> str:
 
 
 def create_user(db: Session, username: str, password: str, role: str) -> User:
+    if len(password or "") < 8:
+        raise ValueError("Password must be at least 8 characters")
+    if len(username or "") < 3:
+        raise ValueError("Username must be at least 3 characters")
     salt = secrets.token_hex(16)
     user = User(username=username, password_hash=hash_password(password, salt), salt=salt, role=role)
     db.add(user)
     db.commit()
     db.refresh(user)
     return user
+
+
+def change_password(db: Session, user: User, old_password: str, new_password: str) -> None:
+    if not verify_password(old_password, user):
+        raise ValueError("Current password is incorrect")
+    if len(new_password or "") < 8:
+        raise ValueError("New password must be at least 8 characters")
+    salt = secrets.token_hex(16)
+    user.salt = salt
+    user.password_hash = hash_password(new_password, salt)
+    db.commit()
 
 
 def verify_password(password: str, user: User) -> bool:

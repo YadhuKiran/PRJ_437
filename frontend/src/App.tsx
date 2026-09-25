@@ -10,6 +10,7 @@ import Dashboard from './pages/Dashboard';
 import Cases from './pages/Cases';
 import CaseDetails from './pages/CaseDetails';
 import AuditLog from './pages/AuditLog';
+import Security from './pages/Security';
 import { BentoGrid, BentoCard } from './components/ui';
 import type { PublicView, StaffView } from './types';
 
@@ -107,6 +108,7 @@ export default function App() {
             )}
             {staffView === 'cases' && <Cases onOpen={setOpenId} />}
             {staffView === 'audit' && <AuditLog />}
+            {staffView === 'security' && <Security />}
             {staffView === 'resources' && <Resources />}
           </div>
         )}

@@ -1,4 +1,4 @@
-"""AI provider abstraction. AI_PROVIDER=mock (offline) | llm | jev (Replit-safe)."""
+"""AI provider abstraction. AI_PROVIDER=jev (cloud, default) | mock | llm."""
 from abc import ABC, abstractmethod
 from .validator import validate_ai_output
 

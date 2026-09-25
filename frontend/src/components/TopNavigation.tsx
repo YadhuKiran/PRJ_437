@@ -25,10 +25,10 @@ export default function TopNavigation({
     else goStaff(v as StaffView);
   }
 
-  const staffLinks: StaffView[] = ['dashboard', 'cases', 'audit', 'resources'];
+  const staffLinks: StaffView[] = ['dashboard', 'cases', 'audit', 'security', 'resources'];
   const labels: Record<View, string> = {
     home: 'Home', report: 'Report', track: 'Track report', resources: 'Resources',
-    dashboard: 'Dashboard', cases: 'Cases', audit: 'Audit logs',
+    dashboard: 'Dashboard', cases: 'Cases', audit: 'Audit logs', security: 'Security & AI',
   };
 
   return (
