@@ -1,0 +1,4 @@
+# Force LF on Replit boot files: CRLF breaks `bash run_replit.sh` on Linux.
+run_replit.sh text eol=lf
+.replit text eol=lf
+*.sh text eol=lf
