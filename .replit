@@ -1,0 +1,14 @@
+run = "bash run_replit.sh"
+entrypoint = "run_replit.sh"
+hidden = [".env", "backend/dv_reports.db", "backend/__pycache__", "frontend/node_modules"]
+
+[nix]
+channel = "stable-24_05"
+
+[deployment]
+run = ["sh", "-c", "bash run_replit.sh"]
+deploymentTarget = "cloudrun"
+
+[[ports]]
+localPort = 8000
+externalPort = 80
