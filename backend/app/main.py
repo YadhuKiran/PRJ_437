@@ -16,9 +16,25 @@ from .routers import reports as reports_router
 from .routers import ai_analysis as ai_router
 from .routers import resources as resources_router
 
-Base.metadata.create_all(bind=engine)
+
+def _init_db():
+    """Create tables best-effort. Never crash boot: a 500 on first request
+    beats a crash loop (Replit restarts an exited process forever)."""
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        print(f"WARN: create_all failed ({e!r}); API will boot anyway")
+
 
 app = FastAPI(title="Domestic Violence Reporting Platform (+ AI risk assessment)")
+
+
+@app.on_event("startup")
+def _startup_init_db():
+    _init_db()
+
+
+_init_db()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -40,9 +56,15 @@ def health():
 
 
 # ---- Single-service static hosting for Replit (no-op locally if dist missing) ----
+# Guard BOTH dist/ and dist/assets: StaticFiles raises at import time if the
+# directory is missing, which would exit uvicorn instantly -> Replit crash loop.
 _DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
-if _DIST.is_dir():
-    app.mount("/assets", StaticFiles(directory=_DIST / "assets"), name="assets")
+_ASSETS = _DIST / "assets"
+if _DIST.is_dir() and (_DIST / "index.html").is_file():
+    if _ASSETS.is_dir():
+        app.mount("/assets", StaticFiles(directory=_ASSETS), name="assets")
+    else:
+        print(f"WARN: {_ASSETS} missing; serving index.html without /assets")
 
     @app.get("/", include_in_schema=False)
     def _root():

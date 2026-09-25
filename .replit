@@ -1,7 +1,1 @@
 run = "bash run_replit.sh"
-
-# Replit Deployments health-check the open port. The run command above is
-# used for the Workspace; this section pins the same command for deploys
-# so "No open port was detected" doesn't happen because of a missing deploy target.
-[deployment]
-run = ["bash", "run_replit.sh"]

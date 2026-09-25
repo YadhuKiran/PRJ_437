@@ -12,11 +12,11 @@ echo "--- SafeReport boot (AI_PROVIDER=${AI_PROVIDER:-mock}) ---"
 echo "--- PWD=$(pwd) PORT=$PORT ---"
 
 # --- Pick a python (Replit Nix images often only have `python3`) ---
-if command -v python3 >/dev/null 2>&1; then
-  PYBIN=python3
-elif command -v python >/dev/null 2>&1; then
-  PYBIN=python
-else
+PYBIN=""
+for _c in python3 python3.11 python3.12 python; do
+  if command -v "$_c" >/dev/null 2>&1; then PYBIN="$_c"; break; fi
+done
+if [ -z "$PYBIN" ]; then
   echo "FATAL: neither python3 nor python found on PATH. PATH=$PATH"
   echo "TIP: add python to replit.nix, e.g. { pkgs }: { deps = [ pkgs.python311 ]; }"
   exit 1
