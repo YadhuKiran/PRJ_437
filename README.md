@@ -37,12 +37,21 @@ npm run dev   # http://localhost:5173 (API at http://localhost:8000)
 5. Save a human override (e.g. MEDIUM + reason) → stored with staff ID + timestamp, audit-logged; view it under **Audit logs** as `admin`.
 
 ## Deploy on Replit (demo)
-One service serves API + built frontend (`run_replit.sh`, `.replit`):
+One service serves API + built frontend (`run_replit.sh`, `.replit`). Boot takes seconds: no build at startup (`frontend/dist` is committed), pip install is skipped when cached, `/` returns 200 immediately for health checks.
+
 1. Push to GitHub → Replit → Create Repl → Import from GitHub.
-2. Secrets (optional — demo works without any key in offline-safe mode):
-   - `AI_PROVIDER=jev`
-   - `JEV_API_KEY=` (or `TYPESAFE_API_KEY` / `OPENROUTER_API_KEY`; OpenRouter also needs `JEV_API_URL=https://openrouter.ai/api/alpha/decisions` + `JEV_MODEL=~typesafe/jev-latest`)
+2. Secrets (all optional — defaults give the full offline-safe demo):
+
+   | Secret | Default | Purpose |
+   |---|---|---|
+   | `AI_PROVIDER` | `mock` | `mock` (offline) \| `llm` \| `jev` (decision layer, offline-safe without key) |
+   | `JEV_API_KEY` | empty | Live Jev triage (or `TYPESAFE_API_KEY` / `OPENROUTER_API_KEY` + `JEV_API_URL`/`JEV_MODEL`) |
+   | `JWT_SECRET` | ephemeral per boot | Auto-generated if unset; set your own for stable logins |
+   | `DATABASE_URL` | SQLite file | Point at Postgres for a persistent review DB |
+
 3. Press **Run** → public flow at `/`, health at `/api/health` (reports `ai_provider`).
+
+Every boot seeds (idempotent): staff logins `admin/Admin123!`, `handler/Handler123!`, `viewer/Viewer123!` + canonical demo case **`SR-45012` (85/100 HIGH)** — open it as handler and press **Generate AI Analysis**, or track `SR-45012` from the public side. Note: the SQLite DB resets on redeploy; demo data is re-seeded automatically.
 
 Local single-service check: `cd frontend && VITE_API_URL="" npm run build`, then `cd backend && python -m uvicorn app.main:app`.
 

@@ -17,6 +17,8 @@ The full demo flow passes offline in mock mode (`AI_PROVIDER=mock`, no API key n
 | Frontend `tsc --noEmit` | Passes |
 | `AI_PROVIDER=jev` without key (offline-safe) | `JevProvider` → demo narrative → `85/100 HIGH` (same as mock) |
 | Single-service boot (`app.main` serves `frontend/dist`) | `GET /api/health` → `ok/jev`, `/` serves SPA, bundle has no `localhost` hardcode |
+| Replit deploy hardening | `dist` committed (no build at boot), minimal `.replit`, pip skip when cached, ephemeral `JWT_SECRET`, `/` → 200 in ~5s |
+| Demo seeding (`SEED_DEMO=1` in `run_replit.sh`) | Fresh deploy auto-creates staff logins + `SR-45012` → `85/100 HIGH` (idempotent, verified) |
 
 ## 2. What is built
 

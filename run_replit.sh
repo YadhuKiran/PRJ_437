@@ -17,6 +17,10 @@ if [ "$REBUILD_FRONTEND" = "1" ]; then
 fi
 
 cd backend
+# Ephemeral demo secret per boot (takes precedence over backend/.env defaults).
+export JWT_SECRET="${JWT_SECRET:-$(python -c 'import secrets;print(secrets.token_hex(32))')}"
+# Seed staff accounts + canonical demo case (SR-45012, 85/100 HIGH).
+export SEED_DEMO=1
 # Install deps only if imports are missing (Replit caches site-packages).
 python -c "import fastapi, uvicorn, sqlalchemy, pydantic, dotenv, jwt" 2>/dev/null \
   || pip install -q -r requirements.txt
