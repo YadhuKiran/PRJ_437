@@ -1,1 +1,5 @@
 run = "bash run_replit.sh"
+modules = ["python-3.11"]
+
+[nix]
+channel = "stable-24_05"
