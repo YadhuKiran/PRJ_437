@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import TopNavigation from './components/TopNavigation';
 import QuickExit from './components/QuickExit';
+import SupportStrip from './components/SupportStrip';
 import Landing from './pages/Landing';
 import ReportWizard from './pages/ReportWizard';
 import TrackReport from './pages/TrackReport';
@@ -12,16 +13,61 @@ import CaseDetails from './pages/CaseDetails';
 import AuditLog from './pages/AuditLog';
 import Security from './pages/Security';
 import { BentoGrid, BentoCard } from './components/ui';
-import type { PublicView, StaffView } from './types';
+import { api, onUnauthorized } from './api';
+import type { PublicView, Session, StaffView } from './types';
+
+const CASE_ID_KEY = 'safereport.lastCaseId';
+
+function readStoredCaseId(): string {
+  try { return sessionStorage.getItem(CASE_ID_KEY) || ''; } catch { return ''; }
+}
+function storeCaseId(id: string) {
+  try { id ? sessionStorage.setItem(CASE_ID_KEY, id) : sessionStorage.removeItem(CASE_ID_KEY); } catch { /* ignore */ }
+}
 
 export default function App() {
   const [mode, setMode] = useState<'public' | 'staff'>('public');
   const [publicView, setPublicView] = useState<PublicView>('home');
   const [staffView, setStaffView] = useState<StaffView>('dashboard');
-  const [submittedCase, setSubmittedCase] = useState('');
+  const [submittedCase, setSubmittedCase] = useState(readStoredCaseId);
   const [openId, setOpenId] = useState<number | null>(null);
-  const [logged, setLogged] = useState(!!localStorage.getItem('token'));
+  const [session, setSession] = useState<Session | null>(null);
   const [urgent, setUrgent] = useState(0);
+  const logged = session !== null;
+
+  const clearSession = useCallback(() => {
+    try {
+      localStorage.removeItem('token');
+      localStorage.removeItem('role');
+      localStorage.removeItem('username');
+    } catch { /* ignore */ }
+    setSession(null);
+    setOpenId(null);
+    setMode('public');
+    setPublicView('home');
+  }, []);
+
+  // Any 401 from the API invalidates the local session.
+  useEffect(() => onUnauthorized(clearSession), [clearSession]);
+
+  // Validate a stored token against the server instead of trusting its
+  // presence in localStorage (B3).
+  useEffect(() => {
+    let alive = true;
+    const token = localStorage.getItem('token');
+    if (!token) { setSession(null); return; }
+    api<Session>('/api/auth/me')
+      .then((s) => {
+        if (!alive) return;
+        setSession(s);
+        try {
+          localStorage.setItem('role', s.role);
+          localStorage.setItem('username', s.username);
+        } catch { /* ignore */ }
+      })
+      .catch(() => { if (alive) clearSession(); });
+    return () => { alive = false; };
+  }, [clearSession]);
 
   function goPublic(v: PublicView) {
     setMode('public');
@@ -35,18 +81,23 @@ export default function App() {
     window.scrollTo({ top: 0 });
   }
   function logout() {
-    localStorage.clear();
-    setLogged(false);
-    setOpenId(null);
-    setMode('public');
-    setPublicView('home');
+    clearSession();
   }
+  function onSubmitted(caseId: string) {
+    setSubmittedCase(caseId);
+    storeCaseId(caseId);
+    window.scrollTo({ top: 0 });
+  }
+
+  const currentView = mode === 'public'
+    ? publicView
+    : (openId != null ? 'cases' : staffView);
 
   return (
     <>
       <TopNavigation
         mode={mode}
-        view={mode === 'public' ? publicView : openId != null ? 'cases' : staffView}
+        view={currentView}
         goPublic={goPublic}
         goStaff={goStaff}
         logged={logged}
@@ -56,31 +107,36 @@ export default function App() {
 
       {/* Staff entry point — visible from the public side without exposing the workspace */}
       {mode === 'public' && (
-        <div style={{ maxWidth: 'var(--max)', margin: '0 auto', padding: '12px 20px 0', textAlign: 'right' }}>
-          <button className="btn ghost" style={{ padding: '7px 14px', fontSize: 14 }} onClick={() => setMode('staff')}>
+        <div className="staff-entry">
+          <button className="btn ghost" onClick={() => setMode('staff')}>
             Staff sign in
           </button>
         </div>
       )}
+      {mode === 'public' && <SupportStrip />}
 
-      <main id="main" className="page">
+      <main id="main" className="page" tabIndex={-1}>
         {mode === 'public' && (
           <div key={publicView} className="fade-in">
             {publicView === 'home' && <Landing go={goPublic} />}
             {publicView === 'report' && (
               submittedCase ? (
                 <BentoGrid>
-                  <BentoCard span="span-12" label="Report submitted">
-                    <h2>Your report is submitted.</h2>
-                    <p><strong>Your Case ID: {submittedCase}</strong> — keep it somewhere safe to track your report.</p>
-                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <BentoCard span="span-12">
+                    <h1 className="page-title">Report submitted</h1>
+                    <p>
+                      <strong>Your Case ID: {submittedCase}</strong> — keep it somewhere safe to track your report.
+                    </p>
+                    <div className="button-row">
                       <button className="btn" onClick={() => goPublic('track')}>Track my report</button>
-                      <button className="btn secondary" onClick={() => { setSubmittedCase(''); }}>Submit another</button>
+                      <button className="btn secondary" onClick={() => { setSubmittedCase(''); storeCaseId(''); }}>
+                        Submit another
+                      </button>
                     </div>
                   </BentoCard>
                 </BentoGrid>
               ) : (
-                <ReportWizard onDone={(c) => { setSubmittedCase(c); window.scrollTo({ top: 0 }); }} />
+                <ReportWizard onDone={onSubmitted} />
               )
             )}
             {publicView === 'track' && <TrackReport initialCaseId={submittedCase} />}
@@ -90,10 +146,10 @@ export default function App() {
 
         {mode === 'staff' && !logged && (
           <div style={{ marginTop: 24 }}>
-            <StaffLogin onLogin={() => { setLogged(true); setStaffView('dashboard'); }} />
-            <p className="meta" style={{ textAlign: 'center', marginTop: 12 }}>
+            <StaffLogin onLogin={(s) => { setSession(s); setStaffView('dashboard'); }} />
+            <div className="meta" style={{ textAlign: 'center', marginTop: 12 }}>
               <button className="btn ghost" onClick={() => setMode('public')}>← Back to public site</button>
-            </p>
+            </div>
           </div>
         )}
 
@@ -118,7 +174,9 @@ export default function App() {
         </footer>
       </main>
 
-      {mode === 'public' && <QuickExit />}
+      {/* The quick exit is always available — staff can also be viewing
+          survivor disclosures and may need to leave immediately. */}
+      <QuickExit />
     </>
   );
 }

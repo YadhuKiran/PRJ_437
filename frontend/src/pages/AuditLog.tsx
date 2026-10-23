@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ShieldAlert } from 'lucide-react';
-import { api } from '../api';
+import { api, ApiError } from '../api';
 import { BentoGrid, BentoCard, Eyebrow, SkeletonGrid, ErrorCard, EmptyState } from '../components/ui';
 import type { AuditEvent } from '../types';
 
@@ -12,29 +12,32 @@ export default function AuditLog() {
   const [events, setEvents] = useState<AuditEvent[] | null>(null);
   const [denied, setDenied] = useState(false);
   const [error, setError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let alive = true;
-    api('/api/audit')
-      .then((r) => { if (alive) setEvents(r); })
+    setEvents(null);
+    setError('');
+    api<AuditEvent[]>('/api/audit')
+      .then((r) => { if (alive) setEvents(Array.isArray(r) ? r : []); })
       .catch((e: unknown) => {
         if (!alive) return;
-        if (e instanceof Error && /403|Forbidden/i.test(e.message)) setDenied(true);
-        else setError('Unable to load audit logs. Please try again.');
+        if (e instanceof ApiError && e.status === 403) setDenied(true);
+        else setError(e instanceof Error ? e.message : 'Unable to load audit logs. Please try again.');
       });
     return () => { alive = false; };
-  }, []);
+  }, [reloadKey]);
 
   if (denied) {
     return (
       <div className="fade-in">
-        <h2 style={{ fontSize: 'var(--fs-section)', color: 'var(--navy-900)' }}>Audit logs</h2>
+        <h1 className="page-title">Audit logs</h1>
         <BentoGrid>
           <BentoCard span="span-12" label="Access restricted">
-            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            <div className="error-body">
               <ShieldAlert color="var(--risk-med-ink)" aria-hidden="true" />
               <div>
-                <h3>Restricted to administrators</h3>
+                <h2 className="card-title">Restricted to administrators</h2>
                 <p className="card-sub">Your role does not include audit-log access. Contact an administrator if you need it.</p>
               </div>
             </div>
@@ -44,7 +47,7 @@ export default function AuditLog() {
     );
   }
 
-  if (error) return <ErrorCard title="Unable to load audit logs." body={error} onRetry={() => window.location.reload()} />;
+  if (error) return <ErrorCard title="Unable to load audit logs." body={error} onRetry={() => setReloadKey((k) => k + 1)} />;
   if (!events) return <SkeletonGrid spans={['span-12']} />;
 
   // Group by day for a clean timeline.
@@ -57,7 +60,7 @@ export default function AuditLog() {
 
   return (
     <div className="fade-in">
-      <h2 style={{ fontSize: 'var(--fs-section)', color: 'var(--navy-900)' }}>Audit logs</h2>
+      <h1 className="page-title">Audit logs</h1>
       <p className="card-sub">Sensitive victim information is never shown here — actions and metadata only.</p>
       <BentoGrid>
         {events.length === 0 ? (

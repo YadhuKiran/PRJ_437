@@ -1,26 +1,53 @@
-/* SafeReport design tokens — single source of truth. No hardcoded random values. */
+/* SafeReport design tokens — single source of truth. No hardcoded random values.
+   Identity: warm ivory surfaces, deep spruce-teal primary, terracotta reserved
+   for urgency and the Quick Exit control. Calm, public-service styling. */
 :root {
-  /* Color */
-  --navy-900: #0f2440;
-  --navy-800: #16325c;
-  --navy-700: #1f4480;
-  --blue-muted: #4a6fa5;
-  --blue-soft: #e8eef7;
-  --bg: #f2f4f8;
-  --card: #ffffff;
-  --card-warm: #fafbfc;
-  --ink: #232a35;
-  --ink-soft: #5b6472;
-  --ink-faint: #8a93a3;
-  --line: #e3e7ee;
-  --risk-low-bg: #e3f2e7;
-  --risk-low-ink: #256b3f;
-  --risk-med-bg: #faf0d7;
-  --risk-med-ink: #8a5f14;
-  --risk-high-bg: #f9e2e2;
-  --risk-high-ink: #a02a2a;
-  --risk-na-bg: #eceff3;
-  --risk-na-ink: #66707e;
+  /* Color — core neutrals (warm) */
+  --bg: #f7f4ef;
+  --card: #fffcf8;
+  --card-warm: #faf7f1;
+  --ink: #26302e;
+  --ink-soft: #566059;
+  /* 5.0:1 on white — WCAG AA for body-size text (warm equivalent of the
+     previously verified 4.7:1 faint tone). */
+  --ink-faint: #6d7168;
+  --line: #e6e0d4;
+  --line-soft: #ede8dd;
+
+  /* Legacy aliases — mapped onto the new palette so components that were
+     written against the previous navy theme recolor automatically. */
+  --navy-900: #143d3a;   /* darkest ink surface (was near-navy) */
+  --navy-800: #0f4c47;   /* primary deep spruce */
+  --navy-700: #145e55;   /* primary hover base */
+  --blue-muted: #3f7d74; /* accent mid */
+  --blue-soft: #e4efec;  /* soft tint (badges, chips, focus glow) */
+
+  /* Primary action (spruce) */
+  --accent: #0f4c47;
+  --accent-hover: #0c3d3a;
+  --accent-ink: #ffffff;
+  --accent-tint: #e4efec;
+  --accent-tint-strong: #cfe4de;
+
+  /* Urgency accent (terracotta) — support strip + Quick Exit only */
+  --urgent-ink: #9c4326;
+  --urgent-bg: #fbeee7;
+  --urgent-strong: #b4533a;
+
+  /* Risk semantics (kept neutral-themable; used by staff views) */
+  --risk-low-bg: #e3f0e4;
+  --risk-low-ink: #23663a;
+  --risk-med-bg: #f9f0d8;
+  --risk-med-ink: #7d5c12;
+  --risk-high-bg: #f8e4e0;
+  --risk-high-ink: #99392a;
+  --risk-na-bg: #ecece7;
+  --risk-na-ink: #6b6f66;
+
+  /* On-dark (AI card / dark panels) */
+  --on-navy: #eef3f0;
+  --on-navy-muted: #b8c9c2;
+  --on-navy-error: #f2c9c0;
 
   /* Spacing scale */
   --s-1: 4px;
@@ -33,27 +60,35 @@
   --s-10: 40px;
 
   /* Radius */
-  --r-card: 20px;
-  --r-inner: 14px;
-  --r-btn: 12px;
+  --r-card: 18px;
+  --r-inner: 12px;
+  --r-btn: 10px;
   --r-pill: 999px;
 
-  /* Shadows (very soft) + thin borders */
-  --shadow: 0 1px 2px rgba(15, 36, 64, 0.05), 0 4px 16px rgba(15, 36, 64, 0.05);
-  --shadow-hover: 0 2px 4px rgba(15, 36, 64, 0.07), 0 8px 24px rgba(15, 36, 64, 0.09);
+  /* Warm soft shadows */
+  --shadow: 0 1px 2px rgba(43, 48, 46, 0.05), 0 4px 14px rgba(43, 48, 46, 0.06);
+  --shadow-hover: 0 2px 4px rgba(43, 48, 46, 0.07), 0 10px 26px rgba(43, 48, 46, 0.10);
 
-  /* Typography */
-  --font: 'Inter', 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --fs-hero: 36px;
-  --fs-section: 22px;
+  /* Typography
+     No third-party font CDN: a survivor-facing page must not send the
+     visitor's IP address to a font provider. System stack only. */
+  --font: 'Inter', 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --fs-hero: 44px;
+  --fs-display: 34px;
+  --fs-stat: 38px;
+  --fs-section: 23px;
   --fs-card-title: 16px;
   --fs-body: 15px;
-  --fs-meta: 12.5px;
+  --fs-meta: 13px;
 
-  /* Transitions */
+  /* Transitions (minimal, functional) */
   --t-fast: 150ms ease;
   --t-med: 250ms ease;
+  --t-slow: 600ms ease;
+  --t-spin: 0.9s linear infinite;
 
   /* Layout */
   --max: 1180px;
+  --max-narrow: 560px;
+  --max-form: 680px;
 }

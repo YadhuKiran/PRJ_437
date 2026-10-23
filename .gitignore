@@ -6,11 +6,13 @@ __pycache__/
 .env
 venv/
 .venv/
+.pytest_cache/
 
 # Node (dist/ is INTENTIONALLY tracked so Replit boots fast with no build step)
 node_modules/
 vite.err.log
 vite.log
+coverage/
 
 # OS / editor
 .DS_Store

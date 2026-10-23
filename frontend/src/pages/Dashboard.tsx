@@ -4,7 +4,7 @@ import {
   BentoGrid, BentoCard, Eyebrow, StatCard, RiskBadge,
   SecurityLine, SkeletonGrid, ErrorCard, EmptyState, ScoreBar,
 } from '../components/ui';
-import type { ReportItem, AuditEvent } from '../types';
+import type { AuditEvent, PagedReports, ReportItem } from '../types';
 
 function greeting() {
   const h = new Date().getHours();
@@ -16,27 +16,46 @@ export default function Dashboard({ onOpen, onViewAudit, onUrgent }: {
 }) {
   const [items, setItems] = useState<ReportItem[] | null>(null);
   const [events, setEvents] = useState<AuditEvent[] | null>(null);
+  const [auditError, setAuditError] = useState('');
   const [error, setError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
 
   const role = localStorage.getItem('role') || '';
   const username = localStorage.getItem('username') || '';
 
   useEffect(() => {
     let alive = true;
-    api('/api/reports?page=1&page_size=100')
-      .then((r) => { if (alive) setItems(Array.isArray(r) ? r : (r.items || [])); })
-      .catch(() => { if (alive) setError('Unable to load cases. Please try again.'); });
+    setItems(null);
+    setError('');
+    api<PagedReports>('/api/reports?page=1&page_size=100')
+      .then((r) => {
+        if (!alive) return;
+        setItems(Array.isArray(r) ? (r as unknown as ReportItem[]) : (r.items || []));
+        setError('');
+      })
+      .catch((e: unknown) => {
+        if (alive) setError(e instanceof Error ? e.message : 'Unable to load cases. Please try again.');
+      });
     if (role === 'admin') {
-      api('/api/audit').then((r) => { if (alive) setEvents(r.slice(0, 6)); }).catch(() => { if (alive) setEvents([]); });
+      api<AuditEvent[]>('/api/audit')
+        .then((r) => { if (alive) { setEvents(Array.isArray(r) ? r.slice(0, 6) : []); setAuditError(''); } })
+        .catch((e: unknown) => {
+          if (!alive) return;
+          // A failed audit request must NOT be shown as "no activity".
+          setAuditError(e instanceof Error ? e.message : 'The activity feed could not be loaded.');
+          setEvents([]);
+        });
     }
     return () => { alive = false; };
-  }, [role]);
+  }, [role, reloadKey]);
 
   useEffect(() => {
     if (items) onUrgent(items.filter((r) => r.risk_level === 'HIGH' && r.status !== 'closed').length);
   }, [items, onUrgent]);
 
-  if (error) return <ErrorCard title="Unable to load the dashboard." body={error} onRetry={() => window.location.reload()} />;
+  if (error && !items) {
+    return <ErrorCard title="Unable to load the dashboard." body={error} onRetry={() => setReloadKey((k) => k + 1)} />;
+  }
   if (!items) return <SkeletonGrid />;
 
   const total = items.length;
@@ -47,14 +66,18 @@ export default function Dashboard({ onOpen, onViewAudit, onUrgent }: {
     level: l, n: items.filter((r) => r.risk_level === l).length,
   }));
   const unassessed = items.filter((r) => !r.risk_level).length;
-  const priority = [...items].slice(0, 4);
+  const priority = items.slice(0, 4);
 
   return (
     <div className="fade-in">
-      <h2 style={{ fontSize: 'var(--fs-section)', color: 'var(--navy-900)' }}>
-        {greeting()}, {username || 'Case Handler'}
-      </h2>
+      <h1 className="page-title">{greeting()}, {username || 'Case Handler'}</h1>
       <p className="card-sub">Here&rsquo;s what needs your attention today.</p>
+      {error && (
+        <p className="error-text" role="alert">
+          {error}{' '}
+          <button className="btn ghost" onClick={() => setReloadKey((k) => k + 1)}>Retry</button>
+        </p>
+      )}
 
       <BentoGrid>
         <StatCard label="Total cases" value={total} sub={`${fresh} new`} />
@@ -67,25 +90,26 @@ export default function Dashboard({ onOpen, onViewAudit, onUrgent }: {
           {priority.length === 0 ? (
             <EmptyState title="No priority cases" body="Everything requiring immediate attention has been reviewed." />
           ) : (
-            <div style={{ display: 'grid', gap: 12 }}>
+            <div className="priority-list">
               {priority.map((r) => (
-                <div
-                  key={r.id} role="button" tabIndex={0} className="card clickable"
-                  style={{ padding: '14px 16px', margin: 0 }}
-                  onClick={() => onOpen(r.id)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') onOpen(r.id); }}
-                  aria-label={`Open case ${r.case_id}`}
-                >
-                  <div className="case-card-top">
-                    <span className="case-id">{r.case_id}</span>
-                    <RiskBadge level={r.risk_level} score={r.risk_score} />
-                  </div>
-                  <div className="score-row">
-                    <ScoreBar score={r.risk_score} level={r.risk_level} />
-                  </div>
-                  <div className="meta" style={{ marginTop: 6 }}>
-                    {r.status.replace(/_/g, ' ')} · {r.created_at?.slice(0, 10)}
-                  </div>
+                <div key={r.id}>
+                  <button
+                    type="button"
+                    className="card clickable priority-case"
+                    onClick={() => onOpen(r.id)}
+                    aria-label={`Open case ${r.case_id}`}
+                  >
+                    <div className="case-card-top">
+                      <span className="case-id">{r.case_id}</span>
+                      <RiskBadge level={r.risk_level} score={r.risk_score} />
+                    </div>
+                    <div className="score-row">
+                      <ScoreBar score={r.risk_score} level={r.risk_level} />
+                    </div>
+                    <div className="meta" style={{ marginTop: 6 }}>
+                      {String(r.status).replace(/_/g, ' ')} · {r.created_at?.slice(0, 10)}
+                    </div>
+                  </button>
                 </div>
               ))}
             </div>
@@ -111,8 +135,13 @@ export default function Dashboard({ onOpen, onViewAudit, onUrgent }: {
           <Eyebrow>Recent Activity</Eyebrow>
           {role !== 'admin' ? (
             <p className="card-sub">Full activity history is available to administrators. Latest cases appear in Priority Cases.</p>
+          ) : auditError ? (
+            <p className="error-text" role="alert">
+              {auditError}{' '}
+              <button className="btn ghost" onClick={() => setReloadKey((k) => k + 1)}>Retry</button>
+            </p>
           ) : !events ? (
-            <p className="card-sub">Loading activity…</p>
+            <p className="card-sub" role="status">Loading activity…</p>
           ) : events.length === 0 ? (
             <p className="card-sub">No recent activity.</p>
           ) : (
@@ -127,14 +156,14 @@ export default function Dashboard({ onOpen, onViewAudit, onUrgent }: {
               ))}
             </ol>
           )}
-          {role === 'admin' && (
+          {role === 'admin' && !auditError && (
             <button className="btn ghost" onClick={onViewAudit} style={{ marginTop: 8 }}>View all audit logs</button>
           )}
         </BentoCard>
 
         <BentoCard span="span-6" label="System security">
           <Eyebrow>System Security</Eyebrow>
-          <div style={{ display: 'grid', gap: 10 }}>
+          <div className="security-list">
             <SecurityLine text="Encrypted communication (JWT-secured API)" />
             <SecurityLine text="Role-based access control active" />
             <SecurityLine text="Audit logging enabled" />

@@ -1,12 +1,13 @@
 import { ArrowRight } from 'lucide-react';
-import { BentoCard, RiskBadge, StatusBadge, ScoreBar, levelClass } from './ui';
+import { BentoCard, RiskBadge, StatusBadge, ScoreBar } from './ui';
 import type { ReportItem } from '../types';
 
 /* Clickable bento/table-hybrid case card with subtle hover interaction. */
 export default function CaseCard({ report, onOpen }: {
   report: ReportItem; onOpen: (id: number) => void;
 }) {
-  const tags = [report.reporter_type.replace('_', ' '), report.location].filter(Boolean).join(' · ');
+  const reporter = String(report.reporter_type).replace(/_/g, ' ');
+  const tags = [reporter, report.location].filter(Boolean).join(' · ');
   return (
     <BentoCard span="span-12" clickable onClick={() => onOpen(report.id)} label={`Open case ${report.case_id}`}>
       <div className="case-card">
@@ -26,12 +27,10 @@ export default function CaseCard({ report, onOpen }: {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <StatusBadge status={report.status} />
           <span className="meta">
-            {report.risk_level === 'HIGH' ? 'Urgent review' : ''} · {report.created_at?.slice(0, 10)} · {report.reporter_type.replace('_', ' ')}
+            {report.risk_level === 'HIGH' ? 'Urgent review' : ''} · {report.created_at?.slice(0, 10)} · {reporter}
           </span>
         </div>
       </div>
     </BentoCard>
   );
 }
-
-export { levelClass };

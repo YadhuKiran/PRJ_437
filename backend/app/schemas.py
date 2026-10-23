@@ -8,6 +8,9 @@ class RegisterIn(BaseModel):
     username: str
     password: str
     role: str = "viewer"
+    # Shared secret required to bootstrap the very first administrator.
+    # Ignored once any user exists; never used for staff creation.
+    bootstrap_token: str = ""
 
 
 class LoginIn(BaseModel):

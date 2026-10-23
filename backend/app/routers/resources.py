@@ -8,9 +8,12 @@ from ..audit import audit
 
 router = APIRouter(tags=["resources"])
 
+# Region-agnostic fallback copy: no single emergency number is correct
+# worldwide, so no number is hardcoded here. Region-specific entries belong in
+# the database seed (opt-in) or the frontend VITE_SUPPORT_REGION config.
 RESOURCES = [
-    {"name": "Emergency", "detail": "If you are in immediate danger, call your local emergency number (e.g. 911 / 112)."},
-    {"name": "National DV Hotline (US)", "detail": "1-800-799-7233 (SAFE) — confidential, 24/7."},
+    {"name": "Emergency", "detail": "If you are in immediate danger, call your local emergency-services number now."},
+    {"name": "Confidential support", "detail": "Contact a trusted national domestic-abuse helpline in your region — deployment-specific details are configured separately."},
     {"name": "Safety planning", "detail": "Keep copies of documents with a trusted person; plan a safe exit route."},
     {"name": "Digital safety", "detail": "Use a safe device; clear browsing history if monitored."},
 ]

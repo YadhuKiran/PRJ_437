@@ -1,6 +1,5 @@
 """Existing case-management: victim/anonymous reporting + staff case views."""
-import random
-import time
+import secrets
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -9,6 +8,12 @@ from ..models import Report, RiskAssessment, User
 from ..schemas import ReportCreate, ReportOut, ReportDetail
 from ..auth import require_roles
 from ..audit import audit
+from ..config import (
+    RATE_LIMIT_REPORTS,
+    RATE_LIMIT_TRACK,
+    RATE_LIMIT_WINDOW_S,
+)
+from ..ratelimit import enforce_rate_limit
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
@@ -19,30 +24,41 @@ class StatusIn(BaseModel):
     status: str
 
 
-# ---- Simple in-memory rate limiter (stdlib only, Replit-safe) ----
-# 10 public submissions per IP per 60s sliding window. Resets on reboot,
-# which is fine for abuse-throttling (not billing).
-_RATE: dict[str, list[float]] = {}
-RATE_LIMIT = 10
-RATE_WINDOW_S = 60.0
+# ---- Rate limiting -------------------------------------------------------
+# Shared, bounded, thread-safe limiter (see app/ratelimit.py). The previous
+# per-router implementation never evicted expired buckets and could not be
+# shared between routes.
+def _check_report_rate(request: Request):
+    enforce_rate_limit(
+        request,
+        scope="reports",
+        limit=RATE_LIMIT_REPORTS,
+        window_s=RATE_LIMIT_WINDOW_S,
+        message="Too many reports right now. Please wait a minute and try again.",
+    )
 
 
-def _check_rate(ip: str):
-    now = time.monotonic()
-    hits = _RATE.get(ip, [])
-    hits = [t for t in hits if now - t < RATE_WINDOW_S]
-    if len(hits) >= RATE_LIMIT:
-        raise HTTPException(
-            status_code=429,
-            detail="Too many reports right now. Please wait a minute and try again.",
-        )
-    hits.append(now)
-    _RATE[ip] = hits
+def _check_track_rate(request: Request):
+    enforce_rate_limit(
+        request,
+        scope="track",
+        limit=RATE_LIMIT_TRACK,
+        window_s=RATE_LIMIT_WINDOW_S,
+        message="Too many lookups right now. Please wait a moment and try again.",
+    )
+
+
+# Case IDs are unguessable: 6 digits from a 100000-value space generated with
+# the cryptographic `secrets` module (previously 5 digits from a predictable
+# PRNG, which made reports enumerable).
+CASE_ID_DIGITS = 6
+CASE_ID_MIN = 100000
+CASE_ID_MAX = 999999
 
 
 def _gen_case_id(db: Session) -> str:
     for _ in range(20):
-        cid = f"SR-{random.randint(10000, 99999)}"
+        cid = f"SR-{secrets.randbelow(CASE_ID_MAX - CASE_ID_MIN + 1) + CASE_ID_MIN}"
         if not db.query(Report).filter(Report.case_id == cid).first():
             return cid
     raise HTTPException(status_code=500, detail="Could not generate case id")
@@ -63,8 +79,7 @@ def _out(r: Report) -> dict:
 @router.post("", response_model=dict)
 def submit_report(body: ReportCreate, request: Request, db: Session = Depends(get_db)):
     """Public endpoint. AI failure must NEVER block submission (AI runs separately)."""
-    ip = (request.client.host if request.client else "unknown")
-    _check_rate(ip)
+    _check_report_rate(request)
     if body.reporter_type not in ("victim", "anonymous", "third_party"):
         raise HTTPException(status_code=400, detail="Invalid reporter type")
     contact = "" if body.reporter_type == "anonymous" else (body.contact or "")
@@ -97,10 +112,14 @@ def list_reports(staff: User = Depends(require_roles("admin", "case_handler", "v
     small deployments simple; large ones pass ?page=2&page_size=50.
     """
     reports = db.query(Report).order_by(Report.id.desc()).all()
-    scores = {a.report_id: (a.risk_score or -1, a.risk_level) for a in db.query(RiskAssessment).all()}
-    items = [{**_out(r), "risk_score": scores.get(r.id, (-1, None))[0],
-              "risk_level": scores.get(r.id, (-1, None))[1]} for r in reports]
-    items.sort(key=lambda x: x["risk_score"], reverse=True)
+    # null (not a negative sentinel) means "no assessment yet" — the UI must
+    # be able to tell "not assessed" apart from a genuine score of 0.
+    scores = {a.report_id: (a.risk_score, a.risk_level) for a in db.query(RiskAssessment).all()}
+    items = [{**_out(r), "risk_score": scores.get(r.id, (None, None))[0],
+              "risk_level": scores.get(r.id, (None, None))[1]} for r in reports]
+    # Highest risk first; unassessed cases (null score) sort last.
+    items.sort(key=lambda x: (x["risk_score"] is not None, x["risk_score"] or 0), reverse=True)
+
     total = len(items)
     pages = max(1, (total + page_size - 1) // page_size)
     page = min(page, pages)
@@ -113,9 +132,14 @@ def list_reports(staff: User = Depends(require_roles("admin", "case_handler", "v
 
 
 @router.get("/by-case/{case_id}", response_model=dict)
-def victim_status(case_id: str, db: Session = Depends(get_db)):
-    """Public: victim checks status by Case ID. No narrative, no AI detail."""
-    r = db.query(Report).filter(Report.case_id == case_id).first()
+def victim_status(case_id: str, request: Request, db: Session = Depends(get_db)):
+    """Public: victim checks status by Case ID. No narrative, no AI detail.
+
+    Throttled per client so the endpoint cannot be used to enumerate the
+    case-ID space. The response deliberately reveals nothing beyond status.
+    """
+    _check_track_rate(request)
+    r = db.query(Report).filter(Report.case_id == case_id.strip().upper()).first()
     if not r:
         raise HTTPException(status_code=404, detail="Case not found")
     return {"case_id": r.case_id, "status": r.status}
@@ -124,12 +148,29 @@ def victim_status(case_id: str, db: Session = Depends(get_db)):
 @router.get("/{report_id}", response_model=dict)
 def get_report(report_id: int, staff: User = Depends(require_roles("admin", "case_handler", "viewer")),
                db: Session = Depends(get_db)):
+    """Case detail.
+
+    The victim narrative and the contact details are the most sensitive data
+    in the system: they are returned ONLY to roles that need them to work a
+    case (admin, case_handler). A `viewer` receives case metadata and status
+    only, so read-only access cannot be used to read survivor disclosures.
+    """
     r = db.query(Report).filter(Report.id == report_id).first()
     if not r:
         raise HTTPException(status_code=404, detail="Report not found")
     audit(db, "report_viewed", actor_id=staff.id, actor_role=staff.role, report_id=r.id,
-          details={"case_id": r.case_id})
-    return {**_out(r), "contact": r.contact or "", "description": r.description}
+          details={"case_id": r.case_id, "narrative_visible": staff.role in ("admin", "case_handler")})
+    base = {**_out(r)}
+    if staff.role in ("admin", "case_handler"):
+        base["contact"] = r.contact or ""
+        base["description"] = r.description
+    else:
+        base["contact"] = ""
+        base["description"] = ""
+        base["restricted"] = (
+            "Incident narrative and contact details are restricted to case handlers."
+        )
+    return base
 
 
 @router.patch("/{report_id}/status", response_model=dict)

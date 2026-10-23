@@ -1,7 +1,13 @@
-fastapi>=0.110
-uvicorn>=0.29
-sqlalchemy>=2.0
-pydantic>=2.0
-python-dotenv>=1.0
-PyJWT>=2.8
-psycopg2-binary>=2.9  # required only when DATABASE_URL uses PostgreSQL
+# SafeReport backend runtime dependencies — PINNED for reproducible builds.
+# Pinned to the versions this project is developed and verified against.
+# Upgrade deliberately (and re-run the test suite) rather than floating.
+fastapi==0.141.1
+uvicorn==0.52.4
+sqlalchemy==2.0.52
+pydantic==2.13.5
+python-dotenv==1.2.3
+PyJWT==2.14.0
+alembic==1.20.0
+
+# Required only when DATABASE_URL uses PostgreSQL.
+psycopg2-binary==2.9.13

@@ -39,3 +39,28 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def migration_status() -> dict:
+    """Report whether the database schema is under Alembic control.
+
+    A database that contains tables but no `alembic_version` row predates
+    migrations (or was created with create_all). That is not fatal — the app
+    keeps working — but the operator must be told that schema changes will
+    NOT be applied automatically.
+    """
+    from sqlalchemy import inspect, text
+
+    status = {"tracked": False, "tables": [], "alembic_revision": None, "database": DATABASE_URL}
+    try:
+        insp = inspect(engine)
+        status["tables"] = sorted(insp.get_table_names())
+        if "alembic_version" in status["tables"]:
+            with engine.connect() as conn:
+                row = conn.execute(text("SELECT version_num FROM alembic_version")).first()
+            status["tracked"] = True
+            status["alembic_revision"] = row[0] if row else None
+    except Exception as e:  # pragma: no cover - diagnostics only
+        status["error"] = repr(e)
+    return status
+

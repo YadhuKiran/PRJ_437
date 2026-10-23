@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import { BentoGrid, EmptyState, SkeletonGrid, ErrorCard } from '../components/ui';
 import CaseCard from '../components/CaseCard';
-import type { ReportItem } from '../types';
+import type { PagedReports, ReportItem } from '../types';
 
 type Filter = 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'UNASSESSED';
 
@@ -13,24 +13,28 @@ export default function Cases({ onOpen }: { onOpen: (id: number) => void }) {
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [reloadKey, setReloadKey] = useState(0);
   const PAGE_SIZE = 12;
 
   useEffect(() => {
     let alive = true;
     setItems(null);
-    api(`/api/reports?page=${page}&page_size=${PAGE_SIZE}`)
+    setError('');
+    api<PagedReports>(`/api/reports?page=${page}&page_size=${PAGE_SIZE}`)
       .then((r) => {
         if (!alive) return;
-        const list: ReportItem[] = Array.isArray(r) ? r : (r.items || []);
-        if (alive) {
-          setItems(list);
-          setTotal(Array.isArray(r) ? list.length : (r.total ?? list.length));
-          setPages(Array.isArray(r) ? 1 : (r.pages ?? 1));
-        }
+        const list = Array.isArray(r) ? (r as unknown as ReportItem[]) : (r.items || []);
+        setItems(list);
+        setTotal(Array.isArray(r) ? list.length : (r.total ?? list.length));
+        setPages(Array.isArray(r) ? 1 : (r.pages ?? 1));
+        setError('');
       })
-      .catch(() => { if (alive) setError('Unable to load cases. Please try again.'); });
+      .catch((e: unknown) => {
+        if (!alive) return;
+        setError(e instanceof Error ? e.message : 'Unable to load cases. Please try again.');
+      });
     return () => { alive = false; };
-  }, [page]);
+  }, [page, reloadKey]);
 
   const shown = useMemo(() => {
     if (!items) return [];
@@ -39,7 +43,9 @@ export default function Cases({ onOpen }: { onOpen: (id: number) => void }) {
     return items.filter((r) => r.risk_level === filter);
   }, [items, filter]);
 
-  if (error) return <ErrorCard title="Unable to load cases." body={error} onRetry={() => window.location.reload()} />;
+  if (error && !items) {
+    return <ErrorCard title="Unable to load cases." body={error} onRetry={() => setReloadKey((k) => k + 1)} />;
+  }
   if (!items) return <SkeletonGrid spans={['span-12', 'span-12', 'span-12']} />;
 
   const counts: Record<Filter, number> = {
@@ -52,8 +58,14 @@ export default function Cases({ onOpen }: { onOpen: (id: number) => void }) {
 
   return (
     <div className="fade-in">
-      <h2 style={{ fontSize: 'var(--fs-section)', color: 'var(--navy-900)' }}>Cases</h2>
+      <h1 className="page-title">Cases</h1>
       <p className="card-sub">{total} case{total === 1 ? '' : 's'} · sorted by AI risk, highest first.</p>
+      {error && (
+        <p className="error-text" role="alert">
+          {error}{' '}
+          <button className="btn ghost" onClick={() => setReloadKey((k) => k + 1)}>Retry</button>
+        </p>
+      )}
       <div className="filter-row" role="group" aria-label="Filter cases by risk">
         {(Object.keys(counts) as Filter[]).map((f) => (
           <button
@@ -73,7 +85,7 @@ export default function Cases({ onOpen }: { onOpen: (id: number) => void }) {
         )}
       </BentoGrid>
       {pages > 1 && (
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 16 }}>
+        <div className="pager" role="group" aria-label="Case pages">
           <button className="btn ghost" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
             ← Prev
           </button>

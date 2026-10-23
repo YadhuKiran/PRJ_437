@@ -9,4 +9,11 @@ export default defineConfig({
     proxy: { '/api': 'http://localhost:8000' },
   },
   preview: { port: 5173, host: true },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./src/test/setup.ts'],
+    include: ['src/**/*.test.{ts,tsx}'],
+    css: false,
+  },
 });

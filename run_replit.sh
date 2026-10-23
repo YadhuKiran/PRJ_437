@@ -9,8 +9,11 @@
 PORT="${PORT:-5000}"
 # Jev is the default AI provider (cloud decision model, offline-safe without a key).
 export AI_PROVIDER="${AI_PROVIDER:-jev}"
+# The Replit deployment is a DEMO deployment. Set APP_ENV=production on a real
+# deployment; the app then refuses demo seeding and unsafe defaults.
+export APP_ENV="${APP_ENV:-demo}"
 
-echo "--- SafeReport boot (AI_PROVIDER=${AI_PROVIDER:-mock}) ---"
+echo "--- SafeReport boot (APP_ENV=$APP_ENV AI_PROVIDER=${AI_PROVIDER:-mock}) ---"
 echo "--- PWD=$(pwd) PORT=$PORT ---"
 
 # --- Pick a python (Replit Nix images often only have `python3`) ---
@@ -38,9 +41,21 @@ cd backend || { echo "FATAL: backend/ directory not found from $(pwd)"; exit 1; 
 # Ephemeral demo secret per boot (takes precedence over backend/.env defaults).
 if [ -z "${JWT_SECRET:-}" ]; then
   export JWT_SECRET="$($PYBIN -c 'import secrets;print(secrets.token_hex(32))')"
+  echo "--- generated an ephemeral JWT_SECRET for this boot ---"
 fi
-# Seed staff accounts + canonical demo case (SR-45012, 85/100 HIGH).
+
+# Seed the canonical demo case (SR-45012, 85/100 HIGH).
 export SEED_DEMO=1
+# Staff accounts are only seeded when explicitly requested, and NEVER with the
+# well-known demo passwords unless SEED_DEMO_PASSWORDS=1 is set explicitly.
+# Set SEED_STAFF_PASSWORD in Replit Secrets for a known demo password.
+if [ "${SEED_STAFF:-1}" = "1" ]; then
+  export SEED_STAFF=1
+  if [ "${SEED_DEMO_PASSWORDS:-0}" = "1" ]; then
+    echo "--- WARNING: seeding well-known demo passwords (demo only) ---"
+    export SEED_DEMO_PASSWORDS=1
+  fi
+fi
 
 # Install deps only if imports are missing (Replit caches site-packages).
 if ! $PYBIN -c "import fastapi, uvicorn, sqlalchemy, pydantic, dotenv, jwt" 2>/dev/null; then
@@ -52,14 +67,14 @@ if ! $PYBIN -c "import fastapi, uvicorn, sqlalchemy, pydantic, dotenv, jwt" 2>/d
   export PIP_INDEX_URL="${PIP_INDEX_URL:-http://package-firewall.replit.internal/pypi/simple/}"
   export PIP_TRUSTED_HOST="${PIP_TRUSTED_HOST:-package-firewall.replit.internal package-firewall.replit.local}"
   echo "--- pip index: $PIP_INDEX_URL ---"
-  if command -v pip3 >/dev/null 2>&1; then
+  if $PYBIN -m pip --version >/dev/null 2>&1; then
+    PIPBIN="$PYBIN -m pip"
+  elif command -v pip3 >/dev/null 2>&1; then
     PIPBIN=pip3
   elif command -v pip >/dev/null 2>&1; then
     PIPBIN=pip
-  elif $PYBIN -m pip --version >/dev/null 2>&1; then
-    PIPBIN="$PYBIN -m pip"
   else
-    echo "FATAL: no pip found (tried pip3, pip, python -m pip). Cannot install requirements.txt"
+    echo "FATAL: no pip found (tried python -m pip, pip3, pip). Cannot install requirements.txt"
     exit 1
   fi
   # shellcheck disable=SC2086
@@ -76,6 +91,8 @@ else
 fi
 
 echo "--- seeding demo data ---"
+# The staff password is printed once to this log. Set SEED_STAFF_PASSWORD in
+# Replit Secrets to use a known value instead.
 $PYBIN -m app.seed || echo "WARN: seed step failed (continuing — API can still boot)"
 
 echo "--- serving on 0.0.0.0:$PORT (public victim flow: / ) ---"

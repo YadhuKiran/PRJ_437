@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ShieldCheck, Bell, Menu, X, LogOut } from 'lucide-react';
+import { MENU_OPEN_EVENT } from '../lib/events';
 import type { PublicView, StaffView } from '../types';
 
 type View = PublicView | StaffView;
@@ -16,16 +17,39 @@ export default function TopNavigation({
   onLogout: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const username = localStorage.getItem('username') || '';
   const role = (localStorage.getItem('role') || '').replace('_', ' ');
 
+  // Announce menu state so QuickExit can let Escape mean "close menu" while
+  // the menu is open, and mean "leave immediately" when it is not.
+  function applyOpen(next: boolean) {
+    setOpen(next);
+    try {
+      window.dispatchEvent(new CustomEvent(MENU_OPEN_EVENT, { detail: next }));
+    } catch { /* events are best-effort coordination only */ }
+  }
+
   function nav(v: View) {
-    setOpen(false);
+    applyOpen(false);
     if (mode === 'public') goPublic(v as PublicView);
     else goStaff(v as StaffView);
   }
 
-  const staffLinks: StaffView[] = ['dashboard', 'cases', 'audit', 'security', 'resources'];
+  // Escape closes the mobile menu.
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') applyOpen(false);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
+  // The audit log is administrator-only, so it is not offered to other roles.
+  const staffLinks: StaffView[] = (localStorage.getItem('role') === 'admin'
+    ? ['dashboard', 'cases', 'audit', 'security', 'resources']
+    : ['dashboard', 'cases', 'security', 'resources']);
   const labels: Record<View, string> = {
     home: 'Home', report: 'Report', track: 'Track report', resources: 'Resources',
     dashboard: 'Dashboard', cases: 'Cases', audit: 'Audit logs', security: 'Security & AI',
@@ -58,7 +82,7 @@ export default function TopNavigation({
           </nav>
         ) : <span />}
 
-        <div className="topbar-right">
+        <div className="topbar-right" ref={menuRef}>
           {mode === 'staff' && logged && (
             <button
               className="notif" aria-label={`${urgentCount} high-risk cases need review`}
@@ -79,7 +103,7 @@ export default function TopNavigation({
           )}
           <button
             className="btn ghost menu-btn" style={{ padding: '8px 10px' }}
-            onClick={() => setOpen(!open)} aria-expanded={open} aria-label="Toggle menu"
+            onClick={() => applyOpen(!open)} aria-expanded={open} aria-label="Toggle menu"
           >
             {open ? <X size={18} aria-hidden="true" /> : <Menu size={18} aria-hidden="true" />}
           </button>

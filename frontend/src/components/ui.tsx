@@ -1,10 +1,22 @@
-import type { ReactNode, MouseEventHandler } from 'react';
+import type { ReactNode, MouseEventHandler, KeyboardEvent } from 'react';
 import { AlertTriangle, Inbox } from 'lucide-react';
-import type { RiskLevel } from '../types';
+import type { RiskLevel, RiskLevelOrUnavailable, ReportStatus } from '../types';
 
 /* ---------- layout primitives ---------- */
 export function BentoGrid({ children }: { children: ReactNode }) {
   return <div className="bento">{children}</div>;
+}
+
+/** Keyboard activation for card-like buttons (Enter and Space, WCAG 2.1.1). */
+function cardKeyHandler(onClick?: MouseEventHandler) {
+  return (e: KeyboardEvent<HTMLElement>) => {
+    if (!onClick) return;
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+      // Space would otherwise scroll the page.
+      e.preventDefault();
+      onClick(e as unknown as React.MouseEvent<HTMLElement>);
+    }
+  };
 }
 
 export function BentoCard({
@@ -20,7 +32,7 @@ export function BentoCard({
       aria-label={label}
       role={clickable ? 'button' : undefined}
       tabIndex={clickable ? 0 : undefined}
-      onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick?.(e as never); } : undefined}
+      onKeyDown={clickable ? cardKeyHandler(onClick) : undefined}
     >
       {children}
     </section>
@@ -45,19 +57,33 @@ export function StatCard({ span = 'span-3', label, value, sub }: {
 }
 
 /* ---------- badges ---------- */
-export function RiskBadge({ level, score }: { level?: string | null; score?: number | null }) {
+export function RiskBadge({ level, score }: { level?: RiskLevelOrUnavailable | string | null; score?: number | null }) {
   if (!level) return <span className="badge NA">Not assessed</span>;
+  const cls = level === 'HIGH' || level === 'MEDIUM' || level === 'LOW' || level === 'UNAVAILABLE'
+    ? level : 'NA';
   return (
-    <span className={`badge ${level}`}>
+    <span className={`badge ${cls}`}>
       <span className="dot" aria-hidden="true" />
       {level}{score != null && score >= 0 ? ` · ${score}` : ''}
     </span>
   );
 }
 
-export function StatusBadge({ status }: { status: string }) {
-  const label = status.replace(/_/g, ' ').toUpperCase();
-  return <span className="badge NA">{label}</span>;
+const STATUS_LABEL: Record<string, string> = {
+  new: 'New',
+  under_review: 'Under review',
+  closed: 'Closed',
+};
+
+export function StatusBadge({ status }: { status: ReportStatus | string }) {
+  const label = STATUS_LABEL[status] ?? status.replace(/_/g, ' ');
+  const cls = status === 'new' || status === 'under_review' || status === 'closed' ? status : 'NA';
+  return (
+    <span className={`badge status-${cls}`}>
+      <span className="dot" aria-hidden="true" />
+      {label}
+    </span>
+  );
 }
 
 export function SecurityLine({ text }: { text: string }) {
@@ -70,10 +96,14 @@ export function SecurityLine({ text }: { text: string }) {
 
 /* ---------- score bar ---------- */
 export function ScoreBar({ score, level }: { score?: number | null; level?: string | null }) {
-  const v = score ?? 0;
+  const known = score != null && score >= 0;
+  const v = known ? score : 0;
   const cls = level === 'HIGH' ? 'high' : level === 'MEDIUM' ? 'medium' : level === 'LOW' ? 'low' : '';
+  const accessible = known
+    ? `Risk ${level ?? 'unknown'}, score ${v} out of 100`
+    : 'Risk not assessed yet';
   return (
-    <div className={`score-bar ${cls}`} role="img" aria-label={`Risk score ${v} out of 100`}>
+    <div className={`score-bar ${cls}`} role="img" aria-label={accessible}>
       <span style={{ width: `${Math.max(0, Math.min(100, v))}%` }} />
     </div>
   );
@@ -97,8 +127,9 @@ export function SkeletonGrid({ spans = ['span-3', 'span-3', 'span-3', 'span-3', 
   spans?: string[];
 }) {
   return (
-    <div className="bento" aria-busy="true" aria-label="Loading">
-      {spans.map((s, i) => <div key={i} className={`skeleton ${s}`} />)}
+    <div className="bento" role="status" aria-busy="true" aria-live="polite">
+      <span className="sr-only">Loading…</span>
+      {spans.map((s, i) => <div key={i} className={`skeleton ${s}`} aria-hidden="true" />)}
     </div>
   );
 }
@@ -107,8 +138,8 @@ export function ErrorCard({ title, body, onRetry }: {
   title: string; body: string; onRetry?: () => void;
 }) {
   return (
-    <BentoCard span="span-12" label={title}>
-      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+    <BentoCard span="span-12">
+      <div className="error-body" role="alert">
         <AlertTriangle color="var(--risk-high-ink)" aria-hidden="true" />
         <div>
           <h3>{title}</h3>
